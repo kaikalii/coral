@@ -1,4 +1,5 @@
 use std::{
+    fs,
     io::{stdin, stdout, BufRead, Write},
     sync::mpsc::{self, Receiver},
     thread::{self, JoinHandle},
@@ -9,6 +10,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use coral::*;
 use notify::{watcher, DebouncedEvent, RecursiveMode, Result, Watcher};
 use pad::{Alignment, PadStr};
+use toml::Value;
 
 #[derive(Clone, Copy)]
 struct Params {
@@ -27,6 +29,14 @@ fn params(matches: &ArgMatches) -> Params {
             Checker::Check
         },
     }
+}
+
+fn print_prompt() {
+    print!(
+        "{}\r> ",
+        "".pad_to_width_with_alignment(terminal_width(), Alignment::Left)
+    );
+    let _ = stdout().flush();
 }
 
 fn run(params: Params) -> Vec<Entry> {
@@ -57,11 +67,7 @@ fn run(params: Params) -> Vec<Entry> {
         })
         .map(|(_, entry)| entry)
         .collect();
-    print!(
-        "{}\r",
-        (0..terminal_width()).map(|_| ' ').collect::<String>()
-    );
-    let _ = stdout().flush();
+    print_prompt();
     entries
 }
 
@@ -124,7 +130,21 @@ fn main() -> Result<()> {
             let (handle, command_rx) = commands();
             let (event_tx, event_rx) = mpsc::channel();
             let mut watcher = watcher(event_tx, Duration::from_secs(2))?;
-            watcher.watch("./src", RecursiveMode::Recursive)?;
+            // watch src
+            watcher.watch("src", RecursiveMode::Recursive)?;
+            // watch other stuff in the workspace
+            if let Ok(bytes) = fs::read("Cargo.toml") {
+                if let Ok(Value::Table(manifest)) = toml::from_slice::<Value>(&bytes) {
+                    if let Some(Value::Table(workspace)) = manifest.get("workspace") {
+                        if let Some(Value::Array(members)) = workspace.get("members") {
+                            for member in members.iter().filter_map(Value::as_str) {
+                                watcher.watch(member, RecursiveMode::Recursive)?;
+                            }
+                        }
+                    }
+                }
+            }
+            // watch loop
             'watch_loop: loop {
                 if let Ok(event) = event_rx.try_recv() {
                     match event {
@@ -149,11 +169,13 @@ fn main() -> Result<()> {
                                     println!("Invalid index");
                                 }
                             } else {
-                                println!("Unknown command: {:?}", command)
+                                println!("Unknown command: {:?}", command);
                             }
+                            print_prompt();
                         }
                     }
                 }
+                thread::sleep(Duration::from_millis(100));
             }
             handle.join().unwrap();
         }

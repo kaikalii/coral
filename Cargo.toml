@@ -1,12 +1,13 @@
 [dependencies]
 clap = '2.33.0'
 colored = '1.8.0'
+notify = '4.0.11'
 pad = '0.1.5'
 serde = '1.0.91'
 serde_derive = '1.0.91'
 serde_json = '1.0.39'
 terminal_size = '0.1.8'
-notify = "*"
+toml = '0.5.1'
 
 [package]
 authors = ['Kai Schmidt <kaikaliischmidt@gmail.com>']
