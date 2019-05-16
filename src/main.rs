@@ -120,7 +120,6 @@ fn commands() -> (JoinHandle<()>, Receiver<String>) {
 }
 
 fn main() -> Result<()> {
-    let a = 5;
     let app = top_app();
     let matches = app.get_matches();
     match matches.subcommand() {

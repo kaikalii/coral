@@ -1,3 +1,11 @@
+#![deny(missing_docs)]
+
+/*!
+This crate parses the output of `cargo check --message-format json` into transparent data structures.
+
+The main entrypoint for running cargo and parsing output is the [`Analyzer`](struct.Analyzer.html) struct.
+*/
+
 use std::{
     collections::VecDeque,
     error,
@@ -13,9 +21,12 @@ use colored::Colorize;
 use pad::{Alignment, PadStr};
 use serde_derive::{Deserialize, Serialize};
 
+/// Error type used by coral
 #[derive(Debug)]
 pub enum Error {
+    /// An error running cargo
     Cargo,
+    /// An IO error
     IO(io::Error),
 }
 
@@ -37,8 +48,10 @@ impl From<io::Error> for Error {
 
 impl error::Error for Error {}
 
+/// Result type used by coral
 pub type Result<T> = result::Result<T, Error>;
 
+/// Get the width of the terminal
 pub fn terminal_width() -> usize {
     terminal_size::terminal_size()
         .map(|(w, _)| w.0 as usize)
@@ -59,9 +72,12 @@ fn ensure_color() {
     colored::control::set_virtual_terminal(true).unwrap();
 }
 
+/// A way of checking a project
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Checker {
+    /// Check with `cargo check`
     Check,
+    /// Check with `cargo clippy`
     Clippy,
 }
 
@@ -71,6 +87,7 @@ impl Default for Checker {
     }
 }
 
+/// The main entrypoint for running cargo and parsing output
 pub struct Analyzer {
     child: Child,
     buffer: VecDeque<u8>,
@@ -79,12 +96,15 @@ pub struct Analyzer {
 }
 
 impl Analyzer {
+    /// Create a new `Analyzer` that uses `cargo check`
     pub fn new() -> Result<Analyzer> {
         Analyzer::with_args(Checker::Check, &[])
     }
+    /// Create a new `Analyzer` that uses `cargo clippy`
     pub fn clippy() -> Result<Analyzer> {
         Analyzer::with_args(Checker::Clippy, &[])
     }
+    /// Create a new `Analyzer` that uses the given checker and argments
     pub fn with_args(checker: Checker, args: &[&str]) -> Result<Analyzer> {
         ensure_color();
         Ok(Analyzer {
@@ -105,9 +125,11 @@ impl Analyzer {
             color: true,
         })
     }
+    /// Set whether to enable debug mode. Default is `false`
     pub fn debug(self, debug: bool) -> Self {
         Analyzer { debug, ..self }
     }
+    /// Set whether to enable console coloring. Default is `true`
     pub fn color(self, color: bool) -> Self {
         Analyzer { color, ..self }
     }
@@ -171,7 +193,9 @@ fn default_color_setting() -> bool {
     true
 }
 
+/// A top-level entry output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Entry {
     pub reason: Reason,
     pub package_id: String,
@@ -195,14 +219,17 @@ impl Entry {
     pub fn is_artifact(&self) -> bool {
         self.reason == Reason::CompilerArtifact
     }
+    /// Get an error, warning, or info report from the `Entry`
+    pub fn report(&self) -> Option<String> {
+        self.report_width(terminal_width())
+    }
+    /// Same as [`Entry::report`](struct.Entry.html#method.report) but uses a custom terminal width
     pub fn report_width(&self, terminal_width: usize) -> Option<String> {
         self.message
             .as_ref()
             .and_then(|m| m.report(self.color, terminal_width))
     }
-    pub fn report(&self) -> Option<String> {
-        self.report_width(terminal_width())
-    }
+    /// Get the `Entry`'s render if it had one
     pub fn rendered(&self) -> Option<&str> {
         self.message
             .as_ref()
@@ -210,15 +237,19 @@ impl Entry {
     }
 }
 
+/// A reason output by cargo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(missing_docs)]
 pub enum Reason {
     CompilerArtifact,
     CompilerMessage,
     BuildScriptExecuted,
 }
 
+/// Target information output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Target {
     pub kind: Vec<TargetKind>,
     pub crate_types: Vec<CrateType>,
@@ -227,8 +258,10 @@ pub struct Target {
     pub edition: String,
 }
 
+/// The kind of a [`Target`](struct.Target.html) output by cargo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(missing_docs)]
 pub enum TargetKind {
     Lib,
     Bin,
@@ -236,7 +269,9 @@ pub enum TargetKind {
     ProcMacro,
 }
 
+/// A message output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Message {
     pub message: String,
     pub code: Option<Code>,
@@ -247,6 +282,7 @@ pub struct Message {
 }
 
 impl Message {
+    /// Get a string containing the column headers for reports
     pub fn report_headers(color: bool) -> String {
         ensure_color();
         colored::control::set_override(color);
@@ -264,6 +300,7 @@ impl Message {
         colored::control::unset_override();
         res
     }
+    /// Get the message as a compact report
     pub fn report(&self, color: bool, terminal_width: usize) -> Option<String> {
         if let (Some(span), true) = (
             self.spans.as_ref().and_then(|v| v.first()),
@@ -304,14 +341,18 @@ impl Message {
     }
 }
 
+/// A code output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Code {
     pub code: String,
     pub explanation: Option<String>,
 }
 
+/// A message severity level output by cargo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(missing_docs)]
 pub enum Level {
     #[serde(rename = "")]
     None,
@@ -322,9 +363,11 @@ pub enum Level {
 }
 
 impl Level {
+    /// Check if the level is not `Level::None`
     pub fn is_some(self) -> bool {
         !self.is_none()
     }
+    /// Check if the level is `Level::None`
     pub fn is_none(self) -> bool {
         self == Level::None
     }
@@ -340,7 +383,9 @@ impl Level {
     }
 }
 
+/// A span output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Span {
     pub file_name: PathBuf,
     pub byte_start: usize,
@@ -358,30 +403,38 @@ pub struct Span {
 }
 
 impl Span {
+    /// Get the `Span`'s line and column
     pub fn line(&self) -> (usize, usize) {
         (self.line_start, self.column_start)
     }
+    /// Get the `Span`'s file name as a `String`
     pub fn file_name_string(&self) -> String {
         self.file_name.to_string_lossy().into_owned()
     }
 }
 
+/// A piece of text output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Text {
     pub text: String,
     pub highlight_start: usize,
     pub highlight_end: usize,
 }
 
+/// A crate type output by cargo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(missing_docs)]
 pub enum CrateType {
     Lib,
     Bin,
     ProcMacro,
 }
 
+/// A profile output by cargo
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
 pub struct Profile {
     pub opt_level: String,
     pub debuginfo: u8,
