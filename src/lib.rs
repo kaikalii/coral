@@ -60,10 +60,14 @@ pub struct Analyzer {
 
 impl Analyzer {
     pub fn new() -> Result<Analyzer> {
+        Analyzer::with_args(&[])
+    }
+    pub fn with_args(args: &[&str]) -> Result<Analyzer> {
         ensure_color();
         Ok(Analyzer {
             child: Command::new("cargo")
                 .args(&["check", "--message-format", "json"])
+                .args(args)
                 .stdin(Stdio::null())
                 .stderr(Stdio::null())
                 .stdout(Stdio::piped())

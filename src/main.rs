@@ -1,10 +1,17 @@
 use std::{fs, io::Write};
 
+use clap::{App, Arg, SubCommand};
 use coral::*;
 
 fn main() {
     let a = 5;
-    let color = true;
+    let app = App::new("coral").arg(
+        Arg::with_name("nocolor")
+            .help("Disable colored output")
+            .long("nocolor"),
+    );
+    let matches = app.get_matches();
+    let color = !matches.is_present("nocolor");
     fs::write("messages.json", &[]).unwrap();
     println!("{}", Message::report_headers(color));
     for entry in Analyzer::new()
