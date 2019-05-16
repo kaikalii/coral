@@ -1,14 +1,31 @@
 use std::{sync::mpsc, time::Duration};
 
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg, ArgMatches, SubCommand};
 use coral::*;
 use notify::{watcher, DebouncedEvent, RecursiveMode, Result, Watcher};
 
-fn run(color: bool) {
-    println!("{}", Message::report_headers(color));
-    for entry in Analyzer::new()
+#[derive(Clone, Copy)]
+struct Params {
+    color: bool,
+    checker: Checker,
+}
+
+fn params(matches: &ArgMatches) -> Params {
+    Params {
+        color: !matches.is_present("nocolor"),
+        checker: if matches.is_present("clippy") {
+            Checker::Clippy
+        } else {
+            Checker::Check
+        },
+    }
+}
+
+fn run(params: Params) {
+    println!("{}", Message::report_headers(params.color));
+    for entry in Analyzer::with_args(params.checker, &[])
         .unwrap()
-        .color(color)
+        .color(params.color)
         .filter(Entry::is_message)
     {
         if let Some(report) = entry.report() {
@@ -17,22 +34,25 @@ fn run(color: bool) {
     }
 }
 
+macro_rules! init_command {
+    ($command:expr) => {
+        $command
+            .arg(
+                Arg::with_name("nocolor")
+                    .help("Disable colored output")
+                    .long("nocolor"),
+            )
+            .arg(
+                Arg::with_name("clippy")
+                    .help("Check with clippy")
+                    .long("clippy"),
+            )
+    };
+}
+
 fn top_app<'a, 'b>() -> App<'a, 'b> {
-    App::new("coral")
-        .arg(
-            Arg::with_name("nocolor")
-                .help("Disable colored output")
-                .long("nocolor"),
-        )
-        .subcommand(
-            SubCommand::with_name("watch")
-                .about("watch for changes to files and recompile if necessary")
-                .arg(
-                    Arg::with_name("nocolor")
-                        .help("Disable colored output")
-                        .long("nocolor"),
-                ),
-        )
+    init_command!(App::new("coral")).subcommand(init_command!(SubCommand::with_name("watch")
+        .about("watch for changes to files and recompile if necessary")))
 }
 
 fn main() -> Result<()> {
@@ -41,21 +61,20 @@ fn main() -> Result<()> {
     let matches = app.get_matches();
     match matches.subcommand() {
         ("watch", Some(matches)) => {
-            let color = !matches.is_present("nocolor");
+            let params = params(matches);
+            run(params);
             let (send, recv) = mpsc::channel();
-            run(color);
             let mut watcher = watcher(send, Duration::from_secs(2))?;
             watcher.watch("./src", RecursiveMode::Recursive)?;
             while let Ok(event) = recv.recv() {
                 match event {
-                    DebouncedEvent::Write(_) | DebouncedEvent::Create(_) => run(color),
+                    DebouncedEvent::Write(_) | DebouncedEvent::Create(_) => run(params),
                     _ => {}
                 }
             }
         }
         _ => {
-            let color = !matches.is_present("nocolor");
-            run(color);
+            run(params(&matches));
         }
     }
     Ok(())

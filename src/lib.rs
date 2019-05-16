@@ -59,6 +59,18 @@ fn ensure_color() {
     colored::control::set_virtual_terminal(true).unwrap();
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Checker {
+    Check,
+    Clippy,
+}
+
+impl Default for Checker {
+    fn default() -> Self {
+        Checker::Check
+    }
+}
+
 pub struct Analyzer {
     child: Child,
     buffer: VecDeque<u8>,
@@ -68,16 +80,23 @@ pub struct Analyzer {
 
 impl Analyzer {
     pub fn new() -> Result<Analyzer> {
-        Analyzer::with_args(&[])
+        Analyzer::with_args(Checker::Check, &[])
     }
-    pub fn with_args(args: &[&str]) -> Result<Analyzer> {
+    pub fn clippy() -> Result<Analyzer> {
+        Analyzer::with_args(Checker::Clippy, &[])
+    }
+    pub fn with_args(checker: Checker, args: &[&str]) -> Result<Analyzer> {
         ensure_color();
         Ok(Analyzer {
             child: Command::new("cargo")
-                .args(&["check", "--message-format", "json"])
+                .args(&[
+                    &format!("{:?}", checker).to_lowercase(),
+                    "--message-format",
+                    "json",
+                ])
                 .args(args)
                 .stdin(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn()
                 .map_err(|_| Error::Cargo)?,
