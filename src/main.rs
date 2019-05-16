@@ -4,9 +4,14 @@ use coral::*;
 
 fn main() {
     let a = 5;
+    let color = true;
     fs::write("messages.json", &[]).unwrap();
-    println!("{}", Message::report_headers());
-    for entry in Analyzer::new().unwrap().filter(Entry::is_message) {
+    println!("{}", Message::report_headers(color));
+    for entry in Analyzer::new()
+        .unwrap()
+        .color(color)
+        .filter(Entry::is_message)
+    {
         if cfg!(debug_assertions) {
             let mut file = fs::OpenOptions::new()
                 .create(true)

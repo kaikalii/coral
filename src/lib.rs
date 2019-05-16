@@ -40,9 +40,10 @@ fn terminal_width() -> usize {
 const LEVEL_COLUMN_WIDTH: usize = 7;
 const FILE_COLUMN_WIDTH: usize = 15;
 const LINE_COLUMN_WIDTH: usize = 8;
+const ELIPSES_COLUMN_WIDTH: usize = 3;
 
 fn message_column_width() -> usize {
-    terminal_width() - LEVEL_COLUMN_WIDTH - FILE_COLUMN_WIDTH - LINE_COLUMN_WIDTH
+    terminal_width() - LEVEL_COLUMN_WIDTH - FILE_COLUMN_WIDTH - LINE_COLUMN_WIDTH - 6
 }
 
 fn ensure_color() {
@@ -54,6 +55,7 @@ pub struct Analyzer {
     child: Child,
     buffer: VecDeque<u8>,
     debug: bool,
+    color: bool,
 }
 
 impl Analyzer {
@@ -69,13 +71,14 @@ impl Analyzer {
                 .map_err(|_| Error::Cargo)?,
             buffer: VecDeque::new(),
             debug: false,
+            color: true,
         })
     }
-    pub fn debug(self) -> Self {
-        Analyzer {
-            debug: true,
-            ..self
-        }
+    pub fn debug(self, debug: bool) -> Self {
+        Analyzer { debug, ..self }
+    }
+    pub fn color(self, color: bool) -> Self {
+        Analyzer { color, ..self }
     }
     fn add_to_buffer(&mut self) {
         const BUFFER_LEN: usize = 100;
@@ -116,7 +119,8 @@ impl Iterator for Analyzer {
                 let _ = file.write(&entry_buffer).unwrap();
                 writeln!(file).unwrap();
             }
-            let entry: Entry = serde_json::from_slice(&entry_buffer).unwrap();
+            let mut entry: Entry = serde_json::from_slice(&entry_buffer).unwrap();
+            entry.color = self.color;
             Some(entry)
         };
         if res.is_none() {
@@ -132,6 +136,10 @@ impl Debug for Analyzer {
     }
 }
 
+fn default_color_setting() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Entry {
     pub reason: Reason,
@@ -143,6 +151,8 @@ pub struct Entry {
     pub filenames: Option<Vec<PathBuf>>,
     pub executable: Option<PathBuf>,
     pub fresh: Option<bool>,
+    #[serde(default = "default_color_setting")]
+    color: bool,
 }
 
 impl Entry {
@@ -151,7 +161,7 @@ impl Entry {
         self.reason == Reason::CompilerMessage
     }
     pub fn report(&self) -> Option<String> {
-        self.message.as_ref().and_then(Message::report)
+        self.message.as_ref().and_then(|m| m.report(self.color))
     }
 }
 
@@ -192,8 +202,9 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn report_headers() -> String {
+    pub fn report_headers(color: bool) -> String {
         ensure_color();
+        colored::control::set_override(color);
         let level = "Level"
             .pad_to_width_with_alignment(LEVEL_COLUMN_WIDTH, Alignment::Right)
             .bright_white();
@@ -204,17 +215,17 @@ impl Message {
             .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
             .bright_white();
         let message = "Message".bright_white();
-        format!("{} {}    {} {}", level, file, line, message)
+        let res = format!("{} {}    {} {}", level, file, line, message);
+        colored::control::unset_override();
+        res
     }
-    pub fn report(&self) -> Option<String> {
+    pub fn report(&self, color: bool) -> Option<String> {
         if let (Some(span), true) = (
             self.spans.as_ref().and_then(|v| v.first()),
             self.level.is_some(),
         ) {
-            let level = self
-                .level
-                .to_string()
-                .pad_to_width_with_alignment(LEVEL_COLUMN_WIDTH, Alignment::Right);
+            colored::control::set_override(color);
+            let level = self.level.format();
             let file = span
                 .file_name_string()
                 .pad_to_width_with_alignment(FILE_COLUMN_WIDTH, Alignment::Right)
@@ -223,8 +234,19 @@ impl Message {
             let line = format!("{}:{}", line, column)
                 .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
                 .bright_cyan();
-            let message = self.message[..(message_column_width().min(self.message.len()))].white();
-            Some(format!("{} {} at {} {}", level, file, line, message))
+            let message = if self.message.len() <= message_column_width() {
+                self.message[..(message_column_width().min(self.message.len()))].white()
+            } else {
+                format!(
+                    "{}...",
+                    &self.message[..((message_column_width() - ELIPSES_COLUMN_WIDTH)
+                        .min(self.message.len()))]
+                )
+                .white()
+            };
+            let res = Some(format!("{} {} at {} {}", level, file, line, message));
+            colored::control::unset_override();
+            res
         } else {
             None
         }
@@ -255,16 +277,14 @@ impl Level {
     pub fn is_none(self) -> bool {
         self == Level::None
     }
-}
-
-impl Display for Level {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn format(self) -> String {
+        let pad = |s: &str| s.pad_to_width_with_alignment(LEVEL_COLUMN_WIDTH, Alignment::Right);
         match self {
-            Level::None => write!(f, ""),
-            Level::Note => write!(f, "{}", "note".bright_cyan()),
-            Level::Help => write!(f, "{}", "help".bright_green()),
-            Level::Warning => write!(f, "{}", "warning".bright_yellow()),
-            Level::Error => write!(f, "{}", "error".bright_red()),
+            Level::None => String::new(),
+            Level::Note => format!("{}", pad("note").bright_cyan()),
+            Level::Help => format!("{}", pad("help").bright_green()),
+            Level::Warning => format!("{}", pad("warning").bright_yellow()),
+            Level::Error => format!("{}", pad("error").bright_red()),
         }
     }
 }
