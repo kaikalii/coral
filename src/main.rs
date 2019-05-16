@@ -1,5 +1,5 @@
 use std::{
-    io::{stdin, BufRead},
+    io::{stdin, stdout, BufRead, Write},
     sync::mpsc::{self, Receiver},
     thread::{self, JoinHandle},
     time::Duration,
@@ -12,12 +12,14 @@ use pad::{Alignment, PadStr};
 
 #[derive(Clone, Copy)]
 struct Params {
+    debug: bool,
     color: bool,
     checker: Checker,
 }
 
 fn params(matches: &ArgMatches) -> Params {
     Params {
+        debug: matches.is_present("debug"),
         color: !matches.is_present("nocolor"),
         checker: if matches.is_present("clippy") {
             Checker::Clippy
@@ -29,9 +31,20 @@ fn params(matches: &ArgMatches) -> Params {
 
 fn run(params: Params) -> Vec<Entry> {
     println!("\n    {}", Message::report_headers(params.color));
-    Analyzer::with_args(params.checker, &[])
+    let entries: Vec<_> = Analyzer::with_args(params.checker, &[])
         .unwrap()
+        .debug(params.debug)
         .color(params.color)
+        .inspect(|entry| {
+            if entry.is_artifact() {
+                print!(
+                    "{}\r",
+                    format!("compiling {}", entry.package_id)
+                        .pad_to_width_with_alignment(terminal_width(), Alignment::Left)
+                );
+                let _ = stdout().flush();
+            }
+        })
         .filter(|entry| entry.report().is_some())
         .enumerate()
         .inspect(|(i, entry)| {
@@ -43,7 +56,13 @@ fn run(params: Params) -> Vec<Entry> {
             )
         })
         .map(|(_, entry)| entry)
-        .collect()
+        .collect();
+    print!(
+        "{}\r",
+        (0..terminal_width()).map(|_| ' ').collect::<String>()
+    );
+    let _ = stdout().flush();
+    entries
 }
 
 macro_rules! init_command {
@@ -58,6 +77,11 @@ macro_rules! init_command {
                 Arg::with_name("clippy")
                     .help("Check with clippy")
                     .long("clippy"),
+            )
+            .arg(
+                Arg::with_name("debug")
+                    .help("Output generated json to the standard output and a file")
+                    .long("debug"),
             )
     };
 }

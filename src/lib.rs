@@ -145,7 +145,7 @@ impl Iterator for Analyzer {
                 let mut file = fs::OpenOptions::new()
                     .create(true)
                     .append(true)
-                    .open("check.json")
+                    .open("coral.json")
                     .unwrap();
                 let _ = file.write(&entry_buffer).unwrap();
                 writeln!(file).unwrap();
@@ -190,6 +190,10 @@ impl Entry {
     /// Check if the `Entry` is a compiler message
     pub fn is_message(&self) -> bool {
         self.reason == Reason::CompilerMessage
+    }
+    /// Check if the `Entry` is a compiler artifact
+    pub fn is_artifact(&self) -> bool {
+        self.reason == Reason::CompilerArtifact
     }
     pub fn report_width(&self, terminal_width: usize) -> Option<String> {
         self.message
@@ -277,15 +281,16 @@ impl Message {
                 .bright_cyan();
             let message_column_width = message_column_width(terminal_width);
             let message = if self.message.len() <= message_column_width {
-                self.message[..(message_column_width.min(self.message.len()))].white()
+                self.message[..(message_column_width.min(self.message.len()))].to_string()
             } else {
                 format!(
                     "{}...",
                     &self.message
                         [..((message_column_width - ELIPSES_COLUMN_WIDTH).min(self.message.len()))]
                 )
-                .white()
-            };
+            }
+            .pad_to_width_with_alignment(message_column_width, Alignment::Left)
+            .white();
             let res = Some(format!("{} {} at {} {}", level, file, line, message));
             colored::control::unset_override();
             res
