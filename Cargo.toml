@@ -11,8 +11,22 @@ toml = '0.5.1'
 
 [package]
 authors = ['Kai Schmidt <kaikaliischmidt@gmail.com>']
+categories = [
+    'command-line-utilities',
+    'development-tools',
+    'development-tools::debugging',
+    'parsing',
+]
+description = 'A library that parses output from `cargo check`, and a cli tool that uses the library to print compact error messages.'
 documentation = 'https://docs.rs/coral'
 edition = '2018'
+keywords = [
+    'rls',
+    'check',
+    'build',
+    'analyze',
+    'compile',
+]
 license = 'MIT'
 name = 'coral'
 repository = 'https://github.com/kaikalii/coral'
