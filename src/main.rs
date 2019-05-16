@@ -1,4 +1,9 @@
-use std::{sync::mpsc, time::Duration};
+use std::{
+    io::{stdin, BufRead},
+    sync::mpsc::{self, Receiver},
+    thread::{self, JoinHandle},
+    time::Duration,
+};
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 use coral::*;
@@ -21,17 +26,19 @@ fn params(matches: &ArgMatches) -> Params {
     }
 }
 
-fn run(params: Params) {
+fn run(params: Params) -> Vec<Entry> {
     println!("{}", Message::report_headers(params.color));
-    for entry in Analyzer::with_args(params.checker, &[])
+    Analyzer::with_args(params.checker, &[])
         .unwrap()
         .color(params.color)
         .filter(Entry::is_message)
-    {
-        if let Some(report) = entry.report() {
-            println!("{}", report)
-        }
-    }
+        .inspect(|entry| {
+            if let Some(report) = entry.report() {
+                println!("{}", report)
+            }
+        })
+        .filter(|entry| entry.report().is_some())
+        .collect()
 }
 
 macro_rules! init_command {
@@ -55,6 +62,21 @@ fn top_app<'a, 'b>() -> App<'a, 'b> {
         .about("watch for changes to files and recompile if necessary")))
 }
 
+fn commands() -> (JoinHandle<()>, Receiver<String>) {
+    let (send, recv) = mpsc::channel();
+    let handle = thread::spawn(move || {
+        for command in stdin().lock().lines().filter_map(std::result::Result::ok) {
+            if !command.trim().is_empty() {
+                let _ = send.send(command.clone());
+            }
+            if command.trim() == "quit" {
+                return;
+            }
+        }
+    });
+    (handle, recv)
+}
+
 fn main() -> Result<()> {
     let a = 5;
     let app = top_app();
@@ -62,16 +84,28 @@ fn main() -> Result<()> {
     match matches.subcommand() {
         ("watch", Some(matches)) => {
             let params = params(matches);
-            run(params);
-            let (send, recv) = mpsc::channel();
-            let mut watcher = watcher(send, Duration::from_secs(2))?;
+            let mut entries = run(params);
+            let (handle, command_rx) = commands();
+            let (event_tx, event_rx) = mpsc::channel();
+            let mut watcher = watcher(event_tx, Duration::from_secs(2))?;
             watcher.watch("./src", RecursiveMode::Recursive)?;
-            while let Ok(event) = recv.recv() {
-                match event {
-                    DebouncedEvent::Write(_) | DebouncedEvent::Create(_) => run(params),
-                    _ => {}
+            'watch_loop: loop {
+                if let Ok(event) = event_rx.try_recv() {
+                    match event {
+                        DebouncedEvent::Write(_) | DebouncedEvent::Create(_) => {
+                            entries = run(params);
+                        }
+                        _ => {}
+                    }
+                }
+                while let Ok(command) = command_rx.try_recv() {
+                    match command.trim() {
+                        "quit" => break 'watch_loop,
+                        s => println!("Unknown command: {:?}", s),
+                    }
                 }
             }
+            handle.join().unwrap();
         }
         _ => {
             run(params(&matches));
