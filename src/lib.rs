@@ -2,12 +2,14 @@ use std::{
     collections::VecDeque,
     error,
     fmt::{self, Debug, Display, Formatter},
-    io::Read,
+    fs,
+    io::{Read, Write},
     path::PathBuf,
     process::{Child, Command, Stdio},
     result,
 };
 
+use colored::Colorize;
 use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -31,6 +33,7 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Analyzer {
     child: Child,
     buffer: VecDeque<u8>,
+    debug: bool,
 }
 
 impl Analyzer {
@@ -44,7 +47,14 @@ impl Analyzer {
                 .spawn()
                 .map_err(|_| Error::Cargo)?,
             buffer: VecDeque::new(),
+            debug: false,
         })
+    }
+    pub fn debug(self) -> Self {
+        Analyzer {
+            debug: true,
+            ..self
+        }
     }
     fn add_to_buffer(&mut self) {
         const BUFFER_LEN: usize = 100;
@@ -74,7 +84,16 @@ impl Iterator for Analyzer {
         let res = if entry_buffer.is_empty() {
             None
         } else {
-            // println!("\t{}\n", String::from_utf8_lossy(&entry_buffer));
+            if self.debug {
+                println!("\t{}\n", String::from_utf8_lossy(&entry_buffer));
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open("check.json")
+                    .unwrap();
+                file.write(&entry_buffer).unwrap();
+                writeln!(file, "").unwrap();
+            }
             let entry: Entry = serde_json::from_slice(&entry_buffer).unwrap();
             Some(entry)
         };
@@ -102,6 +121,13 @@ pub struct Entry {
     pub filenames: Option<Vec<PathBuf>>,
     pub executable: Option<PathBuf>,
     pub fresh: Option<bool>,
+}
+
+impl Entry {
+    /// Check if the `Entry` is a compiler message
+    pub fn is_message(&self) -> bool {
+        self.reason == Reason::CompilerMessage
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -155,6 +181,18 @@ pub enum Level {
     Help,
     Warning,
     Error,
+}
+
+impl Display for Level {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Level::None => write!(f, "none"),
+            Level::Note => write!(f, "{}", "note".bright_cyan()),
+            Level::Help => write!(f, "{}", "help".bright_green()),
+            Level::Warning => write!(f, "{}", "warning".bright_yellow()),
+            Level::Error => write!(f, "{}", "error".bright_red()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
