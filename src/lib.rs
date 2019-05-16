@@ -1,23 +1,94 @@
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    collections::VecDeque,
+    error,
+    fmt::{self, Debug, Display, Formatter},
+    io::Read,
+    path::PathBuf,
+    process::{Child, Command, Stdio},
+    result,
+};
 
 use serde_derive::{Deserialize, Serialize};
 
-pub fn parse() -> Vec<Entry> {
-    let stdout = Command::new("cargo")
-        .args(&["check", "--message-format", "json"])
-        .output()
-        .unwrap()
-        .stdout;
-    fs::write("check.json", &stdout).unwrap();
-    stdout
-        .split(|&b| b == b'\n')
-        .filter(|slice| !slice.is_empty())
-        .map(|obj| {
-            #[cfg(debug_assertions)]
-            println!("\r{:?}\n", String::from_utf8_lossy(obj));
-            serde_json::from_slice(obj).unwrap()
+#[derive(Debug)]
+pub enum Error {
+    Cargo,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use Error::*;
+        match self {
+            Cargo => write!(f, "Unable to run cargo"),
+        }
+    }
+}
+
+impl error::Error for Error {}
+
+pub type Result<T> = result::Result<T, Error>;
+
+pub struct Analyzer {
+    child: Child,
+    buffer: VecDeque<u8>,
+}
+
+impl Analyzer {
+    pub fn new() -> Result<Analyzer> {
+        Ok(Analyzer {
+            child: Command::new("cargo")
+                .args(&["check", "--message-format", "json"])
+                .stdin(Stdio::null())
+                .stderr(Stdio::null())
+                .stdout(Stdio::piped())
+                .spawn()
+                .map_err(|_| Error::Cargo)?,
+            buffer: VecDeque::new(),
         })
-        .collect()
+    }
+    fn add_to_buffer(&mut self) {
+        const BUFFER_LEN: usize = 100;
+        let mut buffer = [0u8; BUFFER_LEN];
+        while !self.buffer.contains(&b'\n') {
+            if let Ok(len) = self.child.stdout.as_mut().unwrap().read(&mut buffer) {
+                if len == 0 {
+                    break;
+                } else {
+                    self.buffer.extend(&buffer[..len]);
+                }
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+impl Iterator for Analyzer {
+    type Item = Entry;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.add_to_buffer();
+        let mut entry_buffer = Vec::new();
+        while let Some(byte) = self.buffer.pop_front().filter(|&b| b != b'\n') {
+            entry_buffer.push(byte);
+        }
+        let res = if entry_buffer.is_empty() {
+            None
+        } else {
+            // println!("\t{}\n", String::from_utf8_lossy(&entry_buffer));
+            let entry: Entry = serde_json::from_slice(&entry_buffer).unwrap();
+            Some(entry)
+        };
+        if res.is_none() {
+            self.child.wait().unwrap();
+        }
+        res
+    }
+}
+
+impl Debug for Analyzer {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "Analyzer")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
