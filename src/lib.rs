@@ -46,7 +46,7 @@ pub fn terminal_width() -> usize {
 }
 
 const LEVEL_COLUMN_WIDTH: usize = 7;
-const FILE_COLUMN_WIDTH: usize = 15;
+const FILE_COLUMN_WIDTH: usize = 18;
 const LINE_COLUMN_WIDTH: usize = 8;
 const ELIPSES_COLUMN_WIDTH: usize = 3;
 
@@ -271,10 +271,14 @@ impl Message {
         ) {
             colored::control::set_override(color);
             let level = self.level.format();
-            let file = span
-                .file_name_string()
-                .pad_to_width_with_alignment(FILE_COLUMN_WIDTH, Alignment::Right)
-                .bright_cyan();
+            let file = span.file_name_string();
+            let file = if file.len() <= FILE_COLUMN_WIDTH {
+                file
+            } else {
+                format!("...{}", &file[(file.len() - FILE_COLUMN_WIDTH + 3)..])
+            }
+            .pad_to_width_with_alignment(FILE_COLUMN_WIDTH, Alignment::Right)
+            .bright_cyan();
             let (line, column) = span.line();
             let line = format!("{}:{}", line, column)
                 .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
