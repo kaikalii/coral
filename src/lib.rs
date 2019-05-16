@@ -39,7 +39,7 @@ impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
-fn terminal_width() -> usize {
+pub fn terminal_width() -> usize {
     terminal_size::terminal_size()
         .map(|(w, _)| w.0 as usize)
         .unwrap_or(100)
@@ -50,8 +50,8 @@ const FILE_COLUMN_WIDTH: usize = 15;
 const LINE_COLUMN_WIDTH: usize = 8;
 const ELIPSES_COLUMN_WIDTH: usize = 3;
 
-fn message_column_width() -> usize {
-    terminal_width() - LEVEL_COLUMN_WIDTH - FILE_COLUMN_WIDTH - LINE_COLUMN_WIDTH - 6
+fn message_column_width(terminal_width: usize) -> usize {
+    terminal_width - LEVEL_COLUMN_WIDTH - FILE_COLUMN_WIDTH - LINE_COLUMN_WIDTH - 6
 }
 
 fn ensure_color() {
@@ -191,8 +191,18 @@ impl Entry {
     pub fn is_message(&self) -> bool {
         self.reason == Reason::CompilerMessage
     }
+    pub fn report_width(&self, terminal_width: usize) -> Option<String> {
+        self.message
+            .as_ref()
+            .and_then(|m| m.report(self.color, terminal_width))
+    }
     pub fn report(&self) -> Option<String> {
-        self.message.as_ref().and_then(|m| m.report(self.color))
+        self.report_width(terminal_width())
+    }
+    pub fn rendered(&self) -> Option<&str> {
+        self.message
+            .as_ref()
+            .and_then(|m| m.rendered.as_ref().map(String::as_str))
     }
 }
 
@@ -250,7 +260,7 @@ impl Message {
         colored::control::unset_override();
         res
     }
-    pub fn report(&self, color: bool) -> Option<String> {
+    pub fn report(&self, color: bool, terminal_width: usize) -> Option<String> {
         if let (Some(span), true) = (
             self.spans.as_ref().and_then(|v| v.first()),
             self.level.is_some(),
@@ -265,13 +275,14 @@ impl Message {
             let line = format!("{}:{}", line, column)
                 .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
                 .bright_cyan();
-            let message = if self.message.len() <= message_column_width() {
-                self.message[..(message_column_width().min(self.message.len()))].white()
+            let message_column_width = message_column_width(terminal_width);
+            let message = if self.message.len() <= message_column_width {
+                self.message[..(message_column_width.min(self.message.len()))].white()
             } else {
                 format!(
                     "{}...",
-                    &self.message[..((message_column_width() - ELIPSES_COLUMN_WIDTH)
-                        .min(self.message.len()))]
+                    &self.message
+                        [..((message_column_width - ELIPSES_COLUMN_WIDTH).min(self.message.len()))]
                 )
                 .white()
             };
