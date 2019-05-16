@@ -10,6 +10,7 @@ use std::{
 };
 
 use colored::Colorize;
+use pad::{Alignment, PadStr};
 use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -30,6 +31,25 @@ impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
+fn terminal_width() -> usize {
+    terminal_size::terminal_size()
+        .map(|(w, _)| w.0 as usize)
+        .unwrap_or(100)
+}
+
+const LEVEL_COLUMN_WIDTH: usize = 7;
+const FILE_COLUMN_WIDTH: usize = 15;
+const LINE_COLUMN_WIDTH: usize = 8;
+
+fn message_column_width() -> usize {
+    terminal_width() - LEVEL_COLUMN_WIDTH - FILE_COLUMN_WIDTH - LINE_COLUMN_WIDTH
+}
+
+fn ensure_color() {
+    #[cfg(windows)]
+    colored::control::set_virtual_terminal(true).unwrap();
+}
+
 pub struct Analyzer {
     child: Child,
     buffer: VecDeque<u8>,
@@ -38,6 +58,7 @@ pub struct Analyzer {
 
 impl Analyzer {
     pub fn new() -> Result<Analyzer> {
+        ensure_color();
         Ok(Analyzer {
             child: Command::new("cargo")
                 .args(&["check", "--message-format", "json"])
@@ -76,6 +97,7 @@ impl Analyzer {
 impl Iterator for Analyzer {
     type Item = Entry;
     fn next(&mut self) -> Option<Self::Item> {
+        colored::control::set_override(true);
         self.add_to_buffer();
         let mut entry_buffer = Vec::new();
         while let Some(byte) = self.buffer.pop_front().filter(|&b| b != b'\n') {
@@ -91,8 +113,8 @@ impl Iterator for Analyzer {
                     .append(true)
                     .open("check.json")
                     .unwrap();
-                file.write(&entry_buffer).unwrap();
-                writeln!(file, "").unwrap();
+                let _ = file.write(&entry_buffer).unwrap();
+                writeln!(file).unwrap();
             }
             let entry: Entry = serde_json::from_slice(&entry_buffer).unwrap();
             Some(entry)
@@ -127,6 +149,9 @@ impl Entry {
     /// Check if the `Entry` is a compiler message
     pub fn is_message(&self) -> bool {
         self.reason == Reason::CompilerMessage
+    }
+    pub fn report(&self) -> Option<String> {
+        self.message.as_ref().and_then(Message::report)
     }
 }
 
@@ -166,6 +191,46 @@ pub struct Message {
     pub rendered: Option<String>,
 }
 
+impl Message {
+    pub fn report_headers() -> String {
+        ensure_color();
+        let level = "Level"
+            .pad_to_width_with_alignment(LEVEL_COLUMN_WIDTH, Alignment::Right)
+            .bright_white();
+        let file = "File"
+            .pad_to_width_with_alignment(FILE_COLUMN_WIDTH, Alignment::Right)
+            .bright_white();
+        let line = "Line"
+            .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
+            .bright_white();
+        let message = "Message".bright_white();
+        format!("{} {}    {} {}", level, file, line, message)
+    }
+    pub fn report(&self) -> Option<String> {
+        if let (Some(span), true) = (
+            self.spans.as_ref().and_then(|v| v.first()),
+            self.level.is_some(),
+        ) {
+            let level = self
+                .level
+                .to_string()
+                .pad_to_width_with_alignment(LEVEL_COLUMN_WIDTH, Alignment::Right);
+            let file = span
+                .file_name_string()
+                .pad_to_width_with_alignment(FILE_COLUMN_WIDTH, Alignment::Right)
+                .bright_cyan();
+            let (line, column) = span.line();
+            let line = format!("{}:{}", line, column)
+                .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
+                .bright_cyan();
+            let message = self.message[..(message_column_width().min(self.message.len()))].white();
+            Some(format!("{} {} at {} {}", level, file, line, message))
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Code {
     pub code: String,
@@ -183,10 +248,19 @@ pub enum Level {
     Error,
 }
 
+impl Level {
+    pub fn is_some(self) -> bool {
+        !self.is_none()
+    }
+    pub fn is_none(self) -> bool {
+        self == Level::None
+    }
+}
+
 impl Display for Level {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Level::None => write!(f, "none"),
+            Level::None => write!(f, ""),
             Level::Note => write!(f, "{}", "note".bright_cyan()),
             Level::Help => write!(f, "{}", "help".bright_green()),
             Level::Warning => write!(f, "{}", "warning".bright_yellow()),
@@ -210,6 +284,15 @@ pub struct Span {
     pub suggested_replacement: Option<String>,
     pub suggestion_applicability: Option<String>,
     pub expansion: Option<String>,
+}
+
+impl Span {
+    pub fn line(&self) -> (usize, usize) {
+        (self.line_start, self.column_start)
+    }
+    pub fn file_name_string(&self) -> String {
+        self.file_name.to_string_lossy().into_owned()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

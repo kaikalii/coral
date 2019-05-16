@@ -1,11 +1,16 @@
-[package]
-name = "coral"
-version = "0.1.0"
-authors = ["Kai Schmidt <kaikaliischmidt@gmail.com>"]
-edition = "2018"
-
 [dependencies]
-serde = "*"
-serde_derive = "*"
-serde_json = "*"
-colored = "*"
+colored = '1.8.0'
+serde = '1.0.91'
+serde_derive = '1.0.91'
+serde_json = '1.0.39'
+terminal_size = "*"
+pad = "*"
+
+[package]
+authors = ['Kai Schmidt <kaikaliischmidt@gmail.com>']
+documentation = 'https://docs.rs/coral'
+edition = '2018'
+license = 'MIT'
+name = 'coral'
+repository = 'https://github.com/kaikalii/coral'
+version = '0.1.0'
