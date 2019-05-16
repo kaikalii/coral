@@ -3,7 +3,7 @@ use std::{
     error,
     fmt::{self, Debug, Display, Formatter},
     fs,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::PathBuf,
     process::{Child, Command, Stdio},
     result,
@@ -16,6 +16,7 @@ use serde_derive::{Deserialize, Serialize};
 #[derive(Debug)]
 pub enum Error {
     Cargo,
+    IO(io::Error),
 }
 
 impl Display for Error {
@@ -23,7 +24,14 @@ impl Display for Error {
         use Error::*;
         match self {
             Cargo => write!(f, "Unable to run cargo"),
+            IO(e) => write!(f, "{}", e),
         }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::IO(e)
     }
 }
 
