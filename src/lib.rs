@@ -399,7 +399,7 @@ pub struct Span {
     pub label: Option<String>,
     pub suggested_replacement: Option<String>,
     pub suggestion_applicability: Option<String>,
-    pub expansion: Option<String>,
+    pub expansion: Option<Box<Expansion>>,
 }
 
 impl Span {
@@ -420,6 +420,15 @@ pub struct Text {
     pub text: String,
     pub highlight_start: usize,
     pub highlight_end: usize,
+}
+
+/// A macro expansion output by cargo
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(missing_docs)]
+pub struct Expansion {
+    pub span: Span,
+    pub macro_decl_name: String,
+    pub def_site_span: Option<Span>,
 }
 
 /// A crate type output by cargo
