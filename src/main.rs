@@ -99,6 +99,7 @@ fn top_app<'a, 'b>() -> App<'a, 'b> {
         .about("Compact Rust compiler messages"))
     .subcommand(init_command!(SubCommand::with_name("watch")
         .alias("w")
+        .alias("reef")
         .about("watch for changes to files and recompile if necessary")))
 }
 
