@@ -6,6 +6,8 @@ This crate parses the output of `cargo check --message-format json` into transpa
 The main entrypoint for running cargo and parsing output is the [`Analyzer`](struct.Analyzer.html) struct.
 */
 
+pub mod print;
+
 use std::{
     collections::VecDeque,
     error,
@@ -261,7 +263,7 @@ pub struct Target {
     pub edition: String,
 }
 
-/// The kind of a [`Target`](struct.Target.html) output by cargo
+/// The kind of a `Target` output by cargo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[allow(missing_docs)]
@@ -342,6 +344,21 @@ impl Message {
             None
         }
     }
+    /// Find a `Span` that contains a suggested replacement
+    pub fn replacement_span(&self) -> Option<&Span> {
+        self.spans
+            .as_ref()
+            .and_then(|spans| {
+                spans
+                    .iter()
+                    .find(|span| span.suggested_replacement.is_some())
+            })
+            .or_else(|| {
+                self.children
+                    .as_ref()
+                    .and_then(|children| children.iter().find_map(Message::replacement_span))
+            })
+    }
 }
 
 /// A code output by cargo
@@ -413,6 +430,30 @@ impl Span {
     /// Get the `Span`'s file name as a `String`
     pub fn file_name_string(&self) -> String {
         self.file_name.to_string_lossy().into_owned()
+    }
+    /// Get the byte length of the `Span`
+    pub fn len(&self) -> usize {
+        self.byte_end - self.byte_start
+    }
+    /// Check if the `Span` is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    /// Modify the source file, replacing
+    /// the span with its suggested replacement
+    ///
+    /// This function consumes the `Span` because it is
+    /// invalidated once the file is modified.
+    pub fn replace_in_file(self) -> Result<()> {
+        if let Some(replacement) = self.suggested_replacement {
+            let mut buffer = fs::read(&self.file_name)?;
+            let mut end = buffer.split_off(self.byte_end);
+            buffer.truncate(self.byte_start);
+            buffer.extend_from_slice(replacement.as_bytes());
+            buffer.append(&mut end);
+            fs::write(&self.file_name, buffer)?;
+        }
+        Ok(())
     }
 }
 

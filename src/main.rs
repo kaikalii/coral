@@ -32,16 +32,8 @@ fn params(matches: &ArgMatches) -> Params {
     }
 }
 
-fn print_prompt() {
-    print!(
-        "{}\r> ",
-        "".pad_to_width_with_alignment(terminal_width(), Alignment::Left)
-    );
-    let _ = stdout().flush();
-}
-
 fn run(params: Params) -> Vec<Entry> {
-    println!("\n    {}", Message::report_headers(params.color));
+    print::headers(params.color);
     let entries: Vec<_> = Analyzer::with_args(params.checker, &[])
         .unwrap()
         .debug(params.debug)
@@ -58,17 +50,10 @@ fn run(params: Params) -> Vec<Entry> {
         })
         .filter(|entry| entry.report().is_some())
         .enumerate()
-        .inspect(|(i, entry)| {
-            println!(
-                "{} {}",
-                i.to_string()
-                    .pad_to_width_with_alignment(3, Alignment::Right),
-                entry.report_width(terminal_width() - 4).unwrap()
-            )
-        })
+        .inspect(|(i, entry)| print::entry(*i, entry))
         .map(|(_, entry)| entry)
         .collect();
-    print_prompt();
+    print::prompt();
     entries
 }
 
@@ -126,10 +111,11 @@ fn commands() -> (JoinHandle<()>, Receiver<String>) {
 }
 
 static COMMAND_HELP: &str = r#"
-Type the index of a message to expand it.
-Other commands:
-    quit: quit watching
-    help: display this message
+Commands:
+    <index>      expand the message at the index
+    fix <index>  apply the compiler-suggested fix, if there is one
+    quit         quit watching
+    help         display this message
 "#;
 
 fn main() -> Result<()> {
@@ -174,6 +160,41 @@ fn main() -> Result<()> {
                 if let Ok(command) = command_rx.try_recv() {
                     match command.trim() {
                         "help" => println!("{}", COMMAND_HELP),
+                        command if command.starts_with("fix ") => {
+                            let res = if let Some(index_str) = command.split_whitespace().nth(1) {
+                                if let Ok(i) = index_str.parse::<usize>() {
+                                    if i < entries.len() {
+                                        if let Some(span) = entries[i]
+                                            .message
+                                            .as_ref()
+                                            .and_then(Message::replacement_span)
+                                        {
+                                            match span.clone().replace_in_file() {
+                                                Ok(()) => Ok(()),
+                                                Err(e) => Err(format!("Error: {}", e)),
+                                            }
+                                        } else {
+                                            Err("No replacement available".into())
+                                        }
+                                    } else {
+                                        Err("Invalid index".into())
+                                    }
+                                } else {
+                                    Err("Index must be a number".into())
+                                }
+                            } else {
+                                Err("Fix which index?".into())
+                            };
+                            match res {
+                                Ok(_) => {
+                                    println!("Fixed, recompiling...");
+                                }
+                                Err(message) => {
+                                    println!("{}", message);
+                                    print::prompt();
+                                }
+                            }
+                        }
                         command if command_exits(command) => break,
                         command => {
                             if let Ok(i) = command.parse::<usize>() {
@@ -189,7 +210,7 @@ fn main() -> Result<()> {
                             } else {
                                 println!("Unknown command: {:?}\n{}", command, COMMAND_HELP);
                             }
-                            print_prompt();
+                            print::prompt();
                         }
                     }
                 }
