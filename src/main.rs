@@ -169,6 +169,7 @@ fn main() -> Result<()> {
                 // get commands
                 while let Ok(command) = command_rx.try_recv() {
                     match command.trim() {
+                        "help" => println!("{}", COMMAND_HELP),
                         command if command_exits(command) => break 'watch_loop,
                         command => {
                             if let Ok(i) = command.parse::<usize>() {
