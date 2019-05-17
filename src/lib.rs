@@ -127,6 +127,9 @@ impl Analyzer {
     }
     /// Set whether to enable debug mode. Default is `false`
     pub fn debug(self, debug: bool) -> Self {
+        if debug {
+            let _ = fs::write("coral.json", &[]);
+        }
         Analyzer { debug, ..self }
     }
     /// Set whether to enable console coloring. Default is `true`
