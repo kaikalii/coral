@@ -96,16 +96,19 @@ macro_rules! init_command {
             .arg(
                 Arg::with_name("nocolor")
                     .help("Disable colored output")
+                    .short("n")
                     .long("nocolor"),
             )
             .arg(
                 Arg::with_name("clippy")
                     .help("Check with clippy")
+                    .short("c")
                     .long("clippy"),
             )
             .arg(
                 Arg::with_name("debug")
                     .help("Output generated json to the standard output and a file")
+                    .short("d")
                     .long("debug"),
             )
     };
