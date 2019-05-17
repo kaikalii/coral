@@ -303,7 +303,7 @@ impl Message {
     /// Get the message as a compact report
     pub fn report(&self, color: bool, terminal_width: usize) -> Option<String> {
         if let (Some(span), true) = (
-            self.spans.as_ref().and_then(|v| v.first()),
+            self.spans.as_ref().and_then(|v| v.last()),
             self.level.is_some(),
         ) {
             colored::control::set_override(color);
