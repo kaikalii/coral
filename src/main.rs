@@ -185,11 +185,8 @@ fn main() -> Result<()> {
             loop {
                 // get watch events
                 if let Ok(event) = event_rx.try_recv() {
-                    match event {
-                        DebouncedEvent::Write(_) | DebouncedEvent::Create(_) => {
-                            entries = run(params);
-                        }
-                        _ => {}
+                    if let DebouncedEvent::Write(_) = event {
+                        entries = run(params);
                     }
                 }
                 // get commands
