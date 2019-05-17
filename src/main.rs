@@ -93,7 +93,11 @@ macro_rules! init_command {
 }
 
 fn top_app<'a, 'b>() -> App<'a, 'b> {
-    init_command!(App::new("coral")).subcommand(init_command!(SubCommand::with_name("watch")
+    init_command!(App::new("coral")
+        .version(env!("CARGO_PKG_VERSION"))
+        .about("Compact Rust compiler messages"))
+    .subcommand(init_command!(SubCommand::with_name("watch")
+        .alias("w")
         .about("watch for changes to files and recompile if necessary")))
 }
 
@@ -119,10 +123,18 @@ fn commands() -> (JoinHandle<()>, Receiver<String>) {
     (handle, recv)
 }
 
+static COMMAND_HELP: &str = r#"
+Type the index of a message to expand it.
+Other commands:
+    quit: quit watching
+    help: display this message
+"#;
+
 fn main() -> Result<()> {
     let app = top_app();
     let matches = app.get_matches();
     match matches.subcommand() {
+        // watch subcommand
         ("watch", Some(matches)) => {
             let params = params(matches);
             let mut entries = run(params);
@@ -145,6 +157,7 @@ fn main() -> Result<()> {
             }
             // watch loop
             'watch_loop: loop {
+                // get watch events
                 if let Ok(event) = event_rx.try_recv() {
                     match event {
                         DebouncedEvent::Write(_) | DebouncedEvent::Create(_) => {
@@ -153,6 +166,7 @@ fn main() -> Result<()> {
                         _ => {}
                     }
                 }
+                // get commands
                 while let Ok(command) = command_rx.try_recv() {
                     match command.trim() {
                         command if command_exits(command) => break 'watch_loop,
@@ -168,16 +182,18 @@ fn main() -> Result<()> {
                                     println!("Invalid index");
                                 }
                             } else {
-                                println!("Unknown command: {:?}", command);
+                                println!("Unknown command: {:?}\n{}", command, COMMAND_HELP);
                             }
                             print_prompt();
                         }
                     }
                 }
+                // sleep to reduce cpu time
                 thread::sleep(Duration::from_millis(100));
             }
             handle.join().unwrap();
         }
+        // no subcommand
         _ => {
             run(params(&matches));
         }
