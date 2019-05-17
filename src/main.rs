@@ -8,6 +8,7 @@ use std::{
 };
 
 use clap::{App, Arg, ArgMatches, SubCommand};
+use colored::Colorize;
 use coral::*;
 use notify::{watcher, DebouncedEvent, RecursiveMode, Result, Watcher};
 use pad::{Alignment, PadStr};
@@ -15,20 +16,24 @@ use toml::Value;
 
 #[derive(Clone, Copy)]
 struct Params {
+    watch: bool,
     debug: bool,
     color: bool,
     checker: Checker,
 }
 
-fn params(matches: &ArgMatches) -> Params {
-    Params {
-        debug: matches.is_present("debug"),
-        color: !matches.is_present("nocolor"),
-        checker: if matches.is_present("clippy") {
-            Checker::Clippy
-        } else {
-            Checker::Check
-        },
+impl Params {
+    fn new(watch: bool, matches: &ArgMatches) -> Params {
+        Params {
+            watch,
+            debug: matches.is_present("debug"),
+            color: !matches.is_present("nocolor"),
+            checker: if matches.is_present("clippy") {
+                Checker::Clippy
+            } else {
+                Checker::Check
+            },
+        }
     }
 }
 
@@ -53,7 +58,35 @@ fn run(params: Params) -> Vec<Entry> {
         .inspect(|(i, entry)| print::entry(*i, entry))
         .map(|(_, entry)| entry)
         .collect();
-    print::prompt();
+    if entries.is_empty() {
+        let no_problems =
+            "No problems".pad_to_width_with_alignment(terminal_width(), Alignment::Left);
+        let no_problems = if params.color {
+            no_problems.bright_green().to_string()
+        } else {
+            no_problems
+        };
+        println!("{}", no_problems);
+    } else {
+        let errors = entries.iter().cloned().filter(Entry::is_error).count();
+        let warnings = entries.iter().cloned().filter(Entry::is_warning).count();
+        let warnings_text = format!("warning{}", if warnings == 1 { "" } else { "s" });
+        let errors_text = format!("error{}", if errors == 1 { "" } else { "s" });
+        let (warnings_text, errors_text) = if params.color {
+            (
+                warnings_text.bright_yellow().to_string(),
+                errors_text.bright_red().to_string(),
+            )
+        } else {
+            (warnings_text, errors_text)
+        };
+        let problem_count = format!("{} {}, {} {}", errors, errors_text, warnings, warnings_text)
+            .pad_to_width_with_alignment(terminal_width(), Alignment::Left);
+        println!("{}", problem_count);
+    }
+    if params.watch {
+        print::prompt();
+    }
     entries
 }
 
@@ -124,7 +157,7 @@ fn main() -> Result<()> {
     match matches.subcommand() {
         // watch subcommand
         ("watch", Some(matches)) => {
-            let params = params(matches);
+            let params = Params::new(true, matches);
             let mut entries = run(params);
             let (handle, command_rx) = commands();
             let (event_tx, event_rx) = mpsc::channel();
@@ -221,7 +254,7 @@ fn main() -> Result<()> {
         }
         // no subcommand
         _ => {
-            run(params(&matches));
+            run(Params::new(false, &matches));
         }
     }
     Ok(())

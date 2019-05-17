@@ -224,6 +224,28 @@ impl Entry {
     pub fn is_artifact(&self) -> bool {
         self.reason == Reason::CompilerArtifact
     }
+    /// Check if a level exists and is a warning
+    pub fn is_warning(&self) -> bool {
+        self.message
+            .as_ref()
+            .map(Message::is_warning)
+            .unwrap_or(false)
+    }
+    /// Check if a level exists and is an error
+    pub fn is_error(&self) -> bool {
+        self.message
+            .as_ref()
+            .map(Message::is_error)
+            .unwrap_or(false)
+    }
+    /// Check if a level exists and is a note
+    pub fn is_note(&self) -> bool {
+        self.message.as_ref().map(Message::is_note).unwrap_or(false)
+    }
+    /// Check if a level exists and is a help
+    pub fn is_help(&self) -> bool {
+        self.message.as_ref().map(Message::is_help).unwrap_or(false)
+    }
     /// Get an error, warning, or info report from the `Entry`
     pub fn report(&self) -> Option<String> {
         self.report_width(terminal_width())
@@ -287,6 +309,22 @@ pub struct Message {
 }
 
 impl Message {
+    /// Check if the level is a warning
+    pub fn is_warning(&self) -> bool {
+        self.level.is_warning()
+    }
+    /// Check if the level is an error
+    pub fn is_error(&self) -> bool {
+        self.level.is_error()
+    }
+    /// Check if the level is a note
+    pub fn is_note(&self) -> bool {
+        self.level.is_note()
+    }
+    /// Check if the level is a help
+    pub fn is_help(&self) -> bool {
+        self.level.is_help()
+    }
     /// Get a string containing the column headers for reports
     pub fn report_headers(color: bool) -> String {
         ensure_color();
@@ -383,6 +421,22 @@ pub enum Level {
 }
 
 impl Level {
+    /// Check if the level is a warning
+    pub fn is_warning(self) -> bool {
+        self == Level::Warning
+    }
+    /// Check if the level is an error
+    pub fn is_error(self) -> bool {
+        self == Level::Error
+    }
+    /// Check if the level is a note
+    pub fn is_note(self) -> bool {
+        self == Level::Note
+    }
+    /// Check if the level is a help
+    pub fn is_help(self) -> bool {
+        self == Level::Help
+    }
     /// Check if the level is not `Level::None`
     pub fn is_some(self) -> bool {
         !self.is_none()
