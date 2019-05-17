@@ -4,9 +4,9 @@ This crate provides both a library and a CLI tool.
 - The library implements a parser for the output of `cargo check --message-format json`. It also provides an interface for directly invoking cargo and parsing.
 - The CLI tool uses the library to provide compact error reporting for Rust projects
 
-[On crates.io](crates.io/crates/coral)
+[On crates.io](https://crates.io/crates/coral)
 
-[Documentation](docs.rs/coral)
+[Documentation](https://docs.rs/coral)
 
 # Demo
 
