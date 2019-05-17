@@ -29,5 +29,6 @@ keywords = [
 ]
 license = 'MIT'
 name = 'coral'
+readme = 'readme.md'
 repository = 'https://github.com/kaikalii/coral'
 version = '0.1.0'
