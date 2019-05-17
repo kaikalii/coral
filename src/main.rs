@@ -156,7 +156,7 @@ fn main() -> Result<()> {
                 }
             }
             // watch loop
-            'watch_loop: loop {
+            loop {
                 // get watch events
                 if let Ok(event) = event_rx.try_recv() {
                     match event {
@@ -167,10 +167,10 @@ fn main() -> Result<()> {
                     }
                 }
                 // get commands
-                while let Ok(command) = command_rx.try_recv() {
+                if let Ok(command) = command_rx.try_recv() {
                     match command.trim() {
                         "help" => println!("{}", COMMAND_HELP),
-                        command if command_exits(command) => break 'watch_loop,
+                        command if command_exits(command) => break,
                         command => {
                             if let Ok(i) = command.parse::<usize>() {
                                 if let Some(entry) = entries.get(i) {
