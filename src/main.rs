@@ -1,6 +1,7 @@
 use std::{
     fs,
     io::{stdin, stdout, BufRead, Write},
+    path::PathBuf,
     sync::mpsc::{self, Receiver},
     thread::{self, JoinHandle},
     time::Duration,
@@ -142,7 +143,9 @@ fn main() -> Result<()> {
             let (event_tx, event_rx) = mpsc::channel();
             let mut watcher = watcher(event_tx, Duration::from_secs(2))?;
             // watch src
-            watcher.watch("src", RecursiveMode::Recursive)?;
+            if PathBuf::from("src").exists() {
+                watcher.watch("src", RecursiveMode::Recursive)?;
+            }
             // watch other stuff in the workspace
             if let Ok(bytes) = fs::read("Cargo.toml") {
                 if let Ok(Value::Table(manifest)) = toml::from_slice::<Value>(&bytes) {
