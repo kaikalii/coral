@@ -30,6 +30,8 @@ impl Params {
             color: !matches.is_present("nocolor"),
             checker: if matches.is_present("clippy") {
                 Checker::Clippy
+            } else if matches.is_present("build") {
+                Checker::Build
             } else {
                 Checker::Check
             },
@@ -98,6 +100,12 @@ macro_rules! init_command {
                     .help("Disable colored output")
                     .short("n")
                     .long("nocolor"),
+            )
+            .arg(
+                Arg::with_name("build")
+                    .help("Check with cargo build")
+                    .short("b")
+                    .long("build"),
             )
             .arg(
                 Arg::with_name("clippy")
