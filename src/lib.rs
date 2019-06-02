@@ -81,6 +81,8 @@ pub enum Checker {
     Check,
     /// Check with `cargo clippy`
     Clippy,
+    /// "Check" with `cargo build`
+    Build,
 }
 
 impl Default for Checker {
