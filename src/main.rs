@@ -192,10 +192,14 @@ fn main() -> Result<()> {
             // watch loop
             loop {
                 // get watch events
-                if let Ok(event) = event_rx.try_recv() {
+                let mut got_event = false;
+                while let Ok(event) = event_rx.try_recv() {
                     if let DebouncedEvent::Write(_) = event {
-                        entries = run(params);
+                        got_event = true;
                     }
+                }
+                if got_event {
+                    entries = run(params);
                 }
                 // get commands
                 if let Ok(command) = command_rx.try_recv() {
