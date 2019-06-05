@@ -2,6 +2,7 @@ use std::{
     fs,
     io::{stdin, stdout, BufRead, Write},
     path::PathBuf,
+    rc::Rc,
     sync::mpsc::{self, Receiver},
     thread::{self, JoinHandle},
     time::Duration,
@@ -14,16 +15,33 @@ use notify::{watcher, DebouncedEvent, RecursiveMode, Result, Watcher};
 use pad::{Alignment, PadStr};
 use toml::Value;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Params {
     watch: bool,
     debug: bool,
     color: bool,
     checker: Checker,
+    args: Rc<Vec<String>>,
 }
 
 impl Params {
     fn new(watch: bool, matches: &ArgMatches) -> Params {
+        let mut args = Vec::new();
+        if matches.is_present("all") {
+            args.push("--all".into());
+        }
+        if let Some(values) = matches.values_of("package") {
+            for value in values {
+                args.push("--package".into());
+                args.push(value.into());
+            }
+        }
+        if let Some(values) = matches.values_of("exclude") {
+            for value in values {
+                args.push("--exclude".into());
+                args.push(value.into());
+            }
+        }
         Params {
             watch,
             debug: matches.is_present("debug"),
@@ -35,13 +53,14 @@ impl Params {
             } else {
                 Checker::Check
             },
+            args: Rc::new(args),
         }
     }
 }
 
 fn run(params: Params) -> Vec<Entry> {
     print::headers(params.color);
-    let entries: Vec<_> = Analyzer::with_args(params.checker, &[])
+    let entries: Vec<_> = Analyzer::with_args(params.checker, &params.args)
         .unwrap()
         .debug(params.debug)
         .color(params.color)
@@ -91,7 +110,6 @@ fn run(params: Params) -> Vec<Entry> {
     }
     entries
 }
-
 macro_rules! init_command {
     ($command:expr) => {
         $command
@@ -118,6 +136,26 @@ macro_rules! init_command {
                     .help("Output generated json to the standard output and a file")
                     .short("d")
                     .long("debug"),
+            )
+            .arg(
+                Arg::with_name("all")
+                    .help("Check all packages in the workspace")
+                    .long("all"),
+            )
+            .arg(
+                Arg::with_name("package")
+                    .help("Package(s) to check")
+                    .short("p")
+                    .long("package")
+                    .takes_value(true)
+                    .multiple(true),
+            )
+            .arg(
+                Arg::with_name("exclude")
+                    .help("Exclude packages from the check")
+                    .long("exclude")
+                    .takes_value(true)
+                    .multiple(true),
             )
     };
 }
@@ -169,7 +207,7 @@ fn main() -> Result<()> {
         // watch subcommand
         ("watch", Some(matches)) => {
             let params = Params::new(true, matches);
-            let mut entries = run(params);
+            let mut entries = run(params.clone());
             let (handle, command_rx) = commands();
             let (event_tx, event_rx) = mpsc::channel();
             let mut watcher = watcher(event_tx, Duration::from_secs(2))?;
@@ -199,7 +237,7 @@ fn main() -> Result<()> {
                     }
                 }
                 if got_event {
-                    entries = run(params);
+                    entries = run(params.clone());
                 }
                 // get commands
                 if let Ok(command) = command_rx.try_recv() {

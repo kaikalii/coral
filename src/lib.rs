@@ -109,7 +109,7 @@ impl Analyzer {
         Analyzer::with_args(Checker::Clippy, &[])
     }
     /// Create a new `Analyzer` that uses the given checker and argments
-    pub fn with_args(checker: Checker, args: &[&str]) -> Result<Analyzer> {
+    pub fn with_args(checker: Checker, args: &[String]) -> Result<Analyzer> {
         ensure_color();
         Ok(Analyzer {
             child: Command::new("cargo")
