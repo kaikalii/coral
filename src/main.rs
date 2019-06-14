@@ -61,6 +61,7 @@ impl Params {
 fn run(params: Params) -> Vec<Entry> {
     let mut printed_headers = false;
     println!();
+    println!();
     let entries: Vec<_> = Analyzer::with_args(params.checker, &params.args)
         .unwrap()
         .debug(params.debug)
