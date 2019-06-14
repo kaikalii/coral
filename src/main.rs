@@ -3,7 +3,10 @@ use std::{
     io::{stdin, stdout, BufRead, Write},
     path::PathBuf,
     rc::Rc,
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        Once,
+    },
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -59,7 +62,7 @@ impl Params {
 }
 
 fn run(params: Params) -> Vec<Entry> {
-    print::headers(params.color);
+    const ONCE: Once = Once::new();
     let entries: Vec<_> = Analyzer::with_args(params.checker, &params.args)
         .unwrap()
         .debug(params.debug)
@@ -75,7 +78,10 @@ fn run(params: Params) -> Vec<Entry> {
         })
         .filter(|entry| entry.report().is_some())
         .enumerate()
-        .inspect(|(i, entry)| print::entry(*i, entry))
+        .inspect(|(i, entry)| {
+            ONCE.call_once(|| print::headers(params.color));
+            print::entry(*i, entry);
+        })
         .map(|(_, entry)| entry)
         .collect();
     if entries.is_empty() {
