@@ -63,6 +63,7 @@ impl Params {
 
 fn run(params: Params) -> Vec<Entry> {
     const ONCE: Once = Once::new();
+    println!();
     let entries: Vec<_> = Analyzer::with_args(params.checker, &params.args)
         .unwrap()
         .debug(params.debug)
