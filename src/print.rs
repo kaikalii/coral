@@ -30,7 +30,7 @@ pub fn entry(index: usize, entry: &Entry) {
 
 /// Print `Entry` column headers
 pub fn headers(color: bool) {
-    println!("\n    {}", Message::report_headers(color));
+    println!("    {}", Message::report_headers(color));
 }
 
 /// Print a compact list of `Entry`s
