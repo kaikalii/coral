@@ -347,13 +347,16 @@ impl Message {
     }
     /// Get the message as a compact report
     pub fn report(&self, color: bool, terminal_width: usize) -> Option<String> {
-        if let (Some(span), true) = (
-            self.spans.as_ref().and_then(|v| v.last()),
-            self.level.is_some(),
-        ) {
+        if self.message.contains("aborting") {
+            None
+        } else if self.level.is_some() {
+            let span = self.spans.as_ref().and_then(|v| v.last());
             colored::control::set_override(color);
             let level = self.level.format();
-            let file = span.file_name_string();
+            let file = span
+                .as_ref()
+                .map(|span| span.file_name_string())
+                .unwrap_or_else(String::new);
             let file = if file.len() <= FILE_COLUMN_WIDTH {
                 file
             } else {
@@ -361,23 +364,35 @@ impl Message {
             }
             .pad_to_width_with_alignment(FILE_COLUMN_WIDTH, Alignment::Right)
             .bright_cyan();
-            let (line, column) = span.line();
-            let line = format!("{}:{}", line, column)
-                .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
-                .bright_cyan();
+            let line = if let Some(ref span) = span {
+                let (line, column) = span.line();
+                format!("{}:{}", line, column)
+            } else {
+                String::new()
+            }
+            .pad_to_width_with_alignment(LINE_COLUMN_WIDTH, Alignment::Left)
+            .bright_cyan();
             let message_column_width = message_column_width(terminal_width);
-            let message = if self.message.len() <= message_column_width {
-                self.message[..(message_column_width.min(self.message.len()))].to_string()
+            let mut message = self.message.clone();
+            message.retain(|c| c != '\n');
+            let message = if message.len() <= message_column_width {
+                message[..(message_column_width.min(message.len()))].to_string()
             } else {
                 format!(
                     "{}...",
-                    &self.message
-                        [..((message_column_width - ELIPSES_COLUMN_WIDTH).min(self.message.len()))]
+                    &message[..((message_column_width - ELIPSES_COLUMN_WIDTH).min(message.len()))]
                 )
             }
             .pad_to_width_with_alignment(message_column_width, Alignment::Left)
             .white();
-            let res = Some(format!("{} {} at {} {}", level, file, line, message));
+            let res = Some(format!(
+                "{} {} {} {} {}",
+                level,
+                file,
+                if span.is_some() { "at" } else { "  " },
+                line,
+                message
+            ));
             colored::control::unset_override();
             res
         } else {
@@ -398,6 +413,17 @@ impl Message {
                     .as_ref()
                     .and_then(|children| children.iter().find_map(Message::replacement_span))
             })
+    }
+    /// Get an iterator over this message and it's children
+    pub fn unroll(&self) -> impl Iterator<Item = &Message> {
+        let mut messages = Vec::new();
+        messages.push(self);
+        if let Some(ref children) = self.children {
+            for child in children {
+                messages.extend(child.unroll());
+            }
+        }
+        messages.into_iter()
     }
 }
 

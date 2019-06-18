@@ -19,13 +19,24 @@ pub fn prompt() {
 
 /// Print an `Entry` with an assigned index
 pub fn entry(index: usize, entry: &Entry) {
-    println!(
-        "{} {}",
-        index
-            .to_string()
-            .pad_to_width_with_alignment(3, Alignment::Right),
-        entry.report_width(terminal_width() - 4).unwrap()
-    )
+    if let Some(ref msg) = entry.message {
+        for msg in msg.unroll() {
+            message(index, entry.color, msg);
+        }
+    }
+}
+
+/// Print a `Message` with an assigned index
+pub fn message(index: usize, color: bool, message: &Message) {
+    if let Some(report) = message.report(color, terminal_width() - 4) {
+        println!(
+            "{} {}",
+            index
+                .to_string()
+                .pad_to_width_with_alignment(3, Alignment::Right),
+            report
+        )
+    }
 }
 
 /// Print `Entry` column headers
