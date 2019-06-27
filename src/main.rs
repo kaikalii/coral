@@ -68,7 +68,7 @@ fn run(params: Params) -> Vec<Entry> {
         .color(params.color)
         .inspect(|entry| {
             if entry.is_artifact() {
-                let mut line = format!("compiling {}", entry.package_id)
+                let mut line = format!("compiled {}", entry.package_id)
                     .pad_to_width_with_alignment(terminal_width(), Alignment::Left);
                 line.truncate(terminal_width());
                 print!("{}\r", line);
