@@ -41,7 +41,11 @@ pub fn message(index: usize, color: bool, message: &Message) {
 
 /// Print `Entry` column headers
 pub fn headers(color: bool) {
-    println!("    {}", Message::report_headers(color));
+    println!(
+        "{}",
+        format!("    {}", Message::report_headers(color))
+            .pad_to_width_with_alignment(terminal_width(), Alignment::Left)
+    );
 }
 
 /// Print a compact list of `Entry`s
