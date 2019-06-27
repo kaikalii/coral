@@ -108,10 +108,11 @@ fn run(params: Params) -> Vec<Entry> {
         } else {
             (warnings_text, errors_text)
         };
-        let mut problem_count = String::new();
-        if errors > 0 {
-            problem_count = format!("{} {}", errors, errors_text);
-        }
+        let mut problem_count = if errors > 0 {
+            format!("{} {}", errors, errors_text)
+        } else {
+            String::new()
+        };
         if warnings > 0 {
             if errors > 0 {
                 problem_count.push_str(", ");
