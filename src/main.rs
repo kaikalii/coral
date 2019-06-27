@@ -108,8 +108,18 @@ fn run(params: Params) -> Vec<Entry> {
         } else {
             (warnings_text, errors_text)
         };
-        let problem_count = format!("{} {}, {} {}", errors, errors_text, warnings, warnings_text)
-            .pad_to_width_with_alignment(terminal_width(), Alignment::Left);
+        let mut problem_count = String::new();
+        if errors > 0 {
+            problem_count = format!("{} {}", errors, errors_text);
+        }
+        if warnings > 0 {
+            if errors > 0 {
+                problem_count.push_str(", ");
+            }
+            problem_count.push_str(&format!("{} {}", warnings, warnings_text));
+        }
+        let problem_count =
+            problem_count.pad_to_width_with_alignment(terminal_width(), Alignment::Left);
         println!("{}", problem_count);
     }
     if params.watch {
