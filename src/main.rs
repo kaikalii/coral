@@ -222,19 +222,22 @@ fn main() -> Result<()> {
     let app = top_app();
     let matches = app.get_matches();
     match matches.subcommand() {
-        // watch subcommand
+        // Watch subcommand
         ("watch", Some(matches)) => {
             let params = Params::new(true, matches);
             let mut entries = run(params.clone());
             let (handle, command_rx) = commands();
             let (event_tx, event_rx) = mpsc::channel();
             let mut watcher = watcher(event_tx, Duration::from_secs(2))?;
-            // watch src
+            // Watch src
             if PathBuf::from("src").exists() {
                 watcher.watch("src", RecursiveMode::Recursive)?;
             }
-            // watch other stuff in the workspace
+            // Watch other stuff in the workspace
             if let Ok(bytes) = fs::read("Cargo.toml") {
+                // Watch Cargo.toml
+                watcher.watch("Cargo.toml", RecursiveMode::Recursive)?;
+                // Read manifest
                 if let Ok(Value::Table(manifest)) = toml::from_slice::<Value>(&bytes) {
                     if let Some(Value::Table(workspace)) = manifest.get("workspace") {
                         if let Some(Value::Array(members)) = workspace.get("members") {
@@ -245,9 +248,9 @@ fn main() -> Result<()> {
                     }
                 }
             }
-            // watch loop
+            // Watch loop
             loop {
-                // get watch events
+                // Get watch events
                 let mut got_event = false;
                 while let Ok(event) = event_rx.try_recv() {
                     if let DebouncedEvent::Write(_) = event {
@@ -257,7 +260,7 @@ fn main() -> Result<()> {
                 if got_event {
                     entries = run(params.clone());
                 }
-                // get commands
+                // Get commands
                 if let Ok(command) = command_rx.try_recv() {
                     match command.trim() {
                         "help" => println!("{}", COMMAND_HELP),
@@ -315,12 +318,12 @@ fn main() -> Result<()> {
                         }
                     }
                 }
-                // sleep to reduce cpu time
+                // Sleep to reduce cpu time
                 thread::sleep(Duration::from_millis(100));
             }
             handle.join().unwrap();
         }
-        // no subcommand
+        // No subcommand
         _ => {
             run(Params::new(false, &matches));
         }
