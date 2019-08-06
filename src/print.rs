@@ -47,15 +47,3 @@ pub fn headers(color: bool) {
             .pad_to_width_with_alignment(terminal_width(), Alignment::Left)
     );
 }
-
-/// Print a compact list of `Entry`s
-pub fn entries<'a, I>(color: bool, entries: I)
-where
-    I: IntoIterator<Item = &'a Entry>,
-{
-    headers(color);
-    for (i, entry) in entries.into_iter().enumerate() {
-        self::entry(i, entry)
-    }
-    prompt();
-}

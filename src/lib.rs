@@ -6,8 +6,6 @@ This crate parses the output of `cargo check --message-format json` into transpa
 The main entrypoint for running cargo and parsing output is the [`Analyzer`](struct.Analyzer.html) struct.
 */
 
-pub mod print;
-
 use std::{
     collections::VecDeque,
     error,
@@ -214,7 +212,7 @@ pub struct Entry {
     pub executable: Option<PathBuf>,
     pub fresh: Option<bool>,
     #[serde(default = "default_color_setting")]
-    color: bool,
+    pub color: bool,
 }
 
 impl Entry {

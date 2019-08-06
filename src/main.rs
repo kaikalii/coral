@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+mod print;
+
 use clap::{App, Arg, ArgMatches, SubCommand};
 use colored::Colorize;
 use coral::*;
