@@ -44,6 +44,20 @@ impl Params {
                 args.push(value.into());
             }
         }
+        if let Some(mut values) = matches.values_of("features") {
+            args.push("--features".into());
+            if let Some(value) = values.next() {
+                let mut concated = value.to_string();
+                for value in values {
+                    concated.push(',');
+                    concated.push_str(value);
+                }
+                args.push(concated)
+            }
+        }
+        if matches.is_present("no-default-features") {
+            args.push("--no-default-features".into());
+        }
         Params {
             watch,
             debug: matches.is_present("debug"),
@@ -64,6 +78,8 @@ fn run(params: Params) -> Vec<Entry> {
     let mut printed_headers = false;
     println!();
     println!();
+    print!("compiling...\r");
+    let _ = stdout().flush();
     let entries: Vec<_> = Analyzer::with_args(params.checker, &params.args)
         .unwrap()
         .debug(params.debug)
@@ -176,6 +192,18 @@ macro_rules! init_command {
                     .long("exclude")
                     .takes_value(true)
                     .multiple(true),
+            )
+            .arg(
+                Arg::with_name("features")
+                    .help("Select crate features to use for the check")
+                    .long("features")
+                    .takes_value(true)
+                    .multiple(true),
+            )
+            .arg(
+                Arg::with_name("no-default-features")
+                    .help("Disable default crate features for the check")
+                    .long("no-default-features"),
             )
     };
 }
