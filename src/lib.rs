@@ -258,9 +258,7 @@ impl Entry {
     }
     /// Get the `Entry`'s render if it had one
     pub fn rendered(&self) -> Option<&str> {
-        self.message
-            .as_ref()
-            .and_then(|m| m.rendered.as_ref().map(String::as_str))
+        self.message.as_ref().and_then(|m| m.rendered.as_deref())
     }
 }
 
@@ -294,6 +292,7 @@ pub enum TargetKind {
     Bin,
     CustomBuild,
     ProcMacro,
+    Staticlib,
 }
 
 /// A message output by cargo
@@ -563,6 +562,7 @@ pub enum CrateType {
     Lib,
     Bin,
     ProcMacro,
+    Staticlib,
 }
 
 /// A profile output by cargo
